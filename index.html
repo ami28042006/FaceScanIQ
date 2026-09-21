@@ -4,12 +4,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FaceScanIQ - Smart Attendance System</title>
+    
+    <!-- Mobile App Capabilities -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0b0f19">
+
     <!-- QR Code Generator for Faculty -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <!-- QR Code Camera Scanner for Students -->
     <script src="https://unpkg.com/html5-qrcode"></script>
+
+    <!-- Firebase Realtime Database SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="./style.css?v=2">
+    <link rel="stylesheet" href="./style.css?v=3">
 </head>
 <body>
 
@@ -59,7 +71,10 @@
                 <img src="./logo.png" alt="FaceScanIQ Logo" class="brand-logo-img" width="36" height="36">
                 <div class="brand-name">FaceScan<span>IQ Portal</span></div>
             </div>
-            <button class="logout-btn" type="button" onclick="logout()">Sign Out</button>
+            <div style="display: flex; align-items: center; gap: 14px;">
+                <span id="navUserGreeting" class="badge" style="display: none; background: rgba(255,255,255,0.08); color: #94a3b8;">Logged In</span>
+                <button class="logout-btn" type="button" onclick="logout()">Sign Out</button>
+            </div>
         </nav>
 
         <div class="dash-content">
@@ -121,7 +136,7 @@
                 <div class="dash-card" style="margin-top: 20px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                         <h3 style="margin: 0; font-size: 16px;">Live Attendance Overview</h3>
-                        <span id="liveCountBadge" class="badge">Present: 2</span>
+                        <span id="liveCountBadge" class="badge">Present: 0</span>
                     </div>
                     <table>
                         <thead>
@@ -133,17 +148,8 @@
                             </tr>
                         </thead>
                         <tbody id="liveAttendanceTableBody">
-                            <tr>
-                                <td>Alex Johnson</td>
-                                <td>CS2026-042</td>
-                                <td>10:14 AM</td>
-                                <td><span class="status-badge">Verified</span></td>
-                            </tr>
-                            <tr>
-                                <td>Sarah Williams</td>
-                                <td>CS2026-058</td>
-                                <td>10:15 AM</td>
-                                <td><span class="status-badge">Verified</span></td>
+                            <tr id="emptyFacultyNotice">
+                                <td colspan="4" style="text-align: center; color: #64748b; padding: 24px;">No student scans received yet. Active scans appear live here.</td>
                             </tr>
                         </tbody>
                     </table>
@@ -182,18 +188,18 @@
                         <div class="grid-2">
                             <div class="input-group">
                                 <label>Full Name</label>
-                                <input type="text" id="profileName" value="Alex Johnson" required>
+                                <input type="text" id="profileName" placeholder="Student name" required>
                             </div>
                             <div class="input-group">
                                 <label>Email Address</label>
-                                <input type="email" id="profileEmail" value="alex.johnson@student.edu" required>
+                                <input type="email" id="profileEmail" placeholder="student@university.edu" required>
                             </div>
                         </div>
 
                         <div class="grid-2">
                             <div class="input-group">
                                 <label>Phone Number</label>
-                                <input type="tel" id="profilePhone" value="+1 (555) 019-2834" required>
+                                <input type="tel" id="profilePhone" value="+91 98765 43210" required>
                             </div>
                             <div class="input-group">
                                 <label>Program Batch</label>
@@ -264,10 +270,8 @@
                             </tr>
                         </thead>
                         <tbody id="student-log">
-                            <tr>
-                                <td>CS-301: Machine Learning</td>
-                                <td>Sep 06, 2026</td>
-                                <td><span class="status-badge">Present</span></td>
+                            <tr id="emptyStudentNotice">
+                                <td colspan="3" style="text-align: center; color: #64748b; padding: 20px;">No attendance marked yet. Scan a faculty QR code to record attendance.</td>
                             </tr>
                         </tbody>
                     </table>
@@ -282,8 +286,8 @@
                     <div style="display: flex; align-items: center; gap: 12px; margin-top: 16px;">
                         <img src="./student-avatar.jpg" alt="Student Avatar" class="avatar-img" onerror="this.src='./logo.png'">
                         <div>
-                            <p style="color: #ffffff; font-size: 16px; font-weight: 600; margin: 0;">Alex Johnson</p>
-                            <p style="color: #94a3b8; font-size: 13px; margin: 0;">ID: CS2026-042 | Semester V</p>
+                            <p id="parentChildName" style="color: #ffffff; font-size: 16px; font-weight: 600; margin: 0;">Student Record</p>
+                            <p id="parentChildId" style="color: #94a3b8; font-size: 13px; margin: 0;">ID: Enrolled | Semester V</p>
                         </div>
                     </div>
                     
@@ -323,6 +327,6 @@
         </div>
     </div>
 
-    <script src="./script.js?v=2"></script>
+    <script src="./script.js?v=3"></script>
 </body>
 </html>
