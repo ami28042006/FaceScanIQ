@@ -173,12 +173,13 @@
                     <p class="subtitle">Hold still while your frontal facial scan is verified.</p>
                     
                     <div class="video-container">
-                        <video id="faceVideo" autoplay playsinline muted></video>
+                        <video id="faceVideo" autoplay playsinline muted style="width: 100%; max-height: 260px; border-radius: 12px; object-fit: cover;"></video>
                     </div>
 
                     <button class="login-btn" type="button" onclick="simulateScanSuccess()">Authenticate & Mark Attendance</button>
+                    <button class="mode-btn" type="button" style="margin-top: 10px; width: 100%;" onclick="resetToScanner()">← Scan Another QR Code</button>
                 </div>
-
+                
                 <!-- Profile Management -->
                 <div class="dash-card" style="margin-top: 20px;">
                     <h2>Student Profile Details</h2>

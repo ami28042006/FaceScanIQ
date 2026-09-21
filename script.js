@@ -32,6 +32,7 @@ let currentRole = 'Faculty';
 let html5QrCode = null;
 let faceVideoStream = null;
 let activeFacultySessionId = null;
+let isScanningActive = false;
 
 // Track active authenticated user in session
 let currentUser = {
@@ -39,6 +40,23 @@ let currentUser = {
     identifier: "CS2026-042",
     role: "Faculty"
 };
+
+// --- REAL-TIME ATTENDANCE SYNC (FIREBASE & CROSS-TAB) ---
+function initFacultyRealtimeListener() {
+    if (!db) return;
+    
+    // Listen across all sessions in the database
+    db.ref('attendance').off(); // Detach previous listeners if re-authenticating
+    db.ref('attendance').on('child_added', (sessionSnapshot) => {
+        // Listen to individual student records inside each session
+        sessionSnapshot.ref.on('child_added', (recordSnapshot) => {
+            const student = recordSnapshot.val();
+            if (student && student.name) {
+                appendAttendanceToFacultyTable(student.name, student.rollNumber, student.timestamp);
+            }
+        });
+    });
+}
 
 // Listen for attendance logged across tabs/windows (Local Fallback)
 window.addEventListener('storage', (event) => {
@@ -125,8 +143,14 @@ function handleAuthSubmit(event) {
         };
     }
 
-    // Save session
     sessionStorage.setItem('active_session_user', JSON.stringify(currentUser));
+
+    // Display greeting in Navbar
+    const greetingBadge = document.getElementById('navUserGreeting');
+    if (greetingBadge) {
+        greetingBadge.textContent = `${currentUser.name} (${currentRole})`;
+        greetingBadge.style.display = 'inline-block';
+    }
 
     // Update profile card in Student dashboard if elements exist
     const profileNameInput = document.getElementById('profileName');
@@ -147,6 +171,7 @@ function handleAuthSubmit(event) {
 
     if (currentRole === 'Faculty') {
         document.getElementById('faculty-panel').style.display = 'block';
+        initFacultyRealtimeListener(); // Start listening for live attendance immediately
     } else if (currentRole === 'Student') {
         document.getElementById('student-panel').style.display = 'block';
         
@@ -174,6 +199,9 @@ function logout() {
     document.getElementById('passwordInput').value = '';
     const nameInput = document.getElementById('nameInput');
     if (nameInput) nameInput.value = '';
+
+    const greetingBadge = document.getElementById('navUserGreeting');
+    if (greetingBadge) greetingBadge.style.display = 'none';
 
     sessionStorage.removeItem('active_session_user');
 
@@ -237,14 +265,6 @@ function startTimedQRGeneration() {
     localStorage.setItem('activeQR_session', sessionToken);
     localStorage.setItem('activeQR_status', 'open');
 
-    // Faculty Screen listens to Firebase for this session
-    if (db) {
-        db.ref('attendance/' + activeFacultySessionId).on('child_added', (snapshot) => {
-            const student = snapshot.val();
-            appendAttendanceToFacultyTable(student.name, student.rollNumber, student.timestamp);
-        });
-    }
-
     let timeLeft = validitySeconds;
     const timerDisplay = document.getElementById('timerDisplay');
     timerDisplay.style.display = 'block';
@@ -267,28 +287,50 @@ function startTimedQRGeneration() {
     }, 1000);
 }
 
-// Student Scanner Initialization
+// --- OPTIMIZED FAST SCANNER & RE-APPEARANCE LOGIC ---
 function initStudentScanner() {
     const qrRegion = document.getElementById('qr-reader');
     if (!qrRegion || typeof Html5Qrcode === 'undefined') return;
 
     if (html5QrCode) {
-        html5QrCode.stop().catch(() => {}).then(startQrCamera);
+        html5QrCode.stop().catch(() => {}).then(startFastCamera);
     } else {
-        startQrCamera();
+        startFastCamera();
     }
 }
 
-function startQrCamera() {
+function startFastCamera() {
+    if (isScanningActive) return;
+
+    const qrRegion = document.getElementById('qr-reader');
+    qrRegion.innerHTML = '';
+
     html5QrCode = new Html5Qrcode("qr-reader");
-    const config = { fps: 10, qrbox: { width: 220, height: 220 } };
+
+    // Dynamic responsive scanning square for fast focus
+    const calculateScanBox = function(viewfinderWidth, viewfinderHeight) {
+        const edge = Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * 0.75);
+        return { width: edge, height: edge };
+    };
+
+    const config = { 
+        fps: 25, // Higher frame rate for lightning-quick capture
+        qrbox: calculateScanBox,
+        aspectRatio: 1.0,
+        experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true
+        }
+    };
+
+    isScanningActive = true;
 
     html5QrCode.start(
         { facingMode: "environment" },
         config,
         onQrScanSuccess,
-        () => {}
+        () => {} // Quiet drop frames to optimize CPU
     ).catch(() => {
+        // Fallback to front camera if rear environment lens fails
         html5QrCode.start(
             { facingMode: "user" },
             config,
@@ -296,7 +338,8 @@ function startQrCamera() {
             () => {}
         ).catch(err => {
             console.error("Camera access failed", err);
-            alert("Camera access denied or unavailable. Please enable camera permissions.");
+            isScanningActive = false;
+            alert("Camera access denied or unavailable. Please verify permissions.");
         });
     });
 }
@@ -331,6 +374,8 @@ function onQrScanSuccess(decodedText) {
         sessionStorage.setItem('active_scanned_session_id', qrData.sessionId);
     }
 
+    isScanningActive = false;
+
     if (html5QrCode) {
         html5QrCode.stop().then(() => {
             html5QrCode.clear();
@@ -362,7 +407,7 @@ function startFaceCamera() {
             faceVideo.srcObject = stream;
             faceVideo.play();
 
-            // Perform biometric verification window (2.5s)
+            // Biometric verification window (2.5 seconds)
             setTimeout(() => {
                 stopAllCameras();
                 simulateFaceMatch();
@@ -389,7 +434,10 @@ function simulateFaceMatch() {
 
 function stopAllCameras() {
     if (html5QrCode) {
-        try { html5QrCode.stop().then(() => html5QrCode.clear()).catch(() => {}); } catch (e) {}
+        try { 
+            html5QrCode.stop().then(() => html5QrCode.clear()).catch(() => {}); 
+        } catch (e) {}
+        isScanningActive = false;
     }
     if (faceVideoStream) {
         faceVideoStream.getTracks().forEach(track => track.stop());
@@ -397,24 +445,51 @@ function stopAllCameras() {
     }
 }
 
-// Append dynamically to Faculty overview table
+// Resets back to the active QR scanner so the student can scan repeatedly
+function resetToScanner() {
+    stopAllCameras();
+    const faceStepCard = document.getElementById('face-step-card');
+    const qrStepCard = document.getElementById('qr-step-card');
+    
+    if (faceStepCard) faceStepCard.style.display = 'none';
+    if (qrStepCard) qrStepCard.style.display = 'block';
+    
+    setTimeout(() => {
+        initStudentScanner();
+    }, 250);
+}
+
+// Append dynamically to Faculty overview table (Prevents Duplicates)
 function appendAttendanceToFacultyTable(name, roll, time) {
     const tbody = document.getElementById('liveAttendanceTableBody');
-    if (tbody) {
-        const emptyNotice = document.getElementById('emptyFacultyNotice');
-        if (emptyNotice) emptyNotice.remove();
+    if (!tbody) return;
 
-        const newRow = document.createElement('tr');
-        newRow.innerHTML = `
-            <td><strong>${name}</strong></td>
-            <td>${roll}</td>
-            <td>${time}</td>
-            <td><span class="status-badge">Verified</span></td>
-        `;
-        tbody.prepend(newRow);
-        
-        const badge = document.getElementById('liveCountBadge');
-        if (badge) badge.textContent = `Present: ${tbody.querySelectorAll('tr').length}`;
+    // Check if student is already in the table
+    const existingRows = tbody.querySelectorAll('tr');
+    for (let row of existingRows) {
+        if (row.dataset.roll === roll) {
+            return; // Avoid duplicating verified records
+        }
+    }
+
+    // Remove empty notice if present
+    const emptyNotice = document.getElementById('emptyFacultyNotice');
+    if (emptyNotice) emptyNotice.remove();
+
+    const newRow = document.createElement('tr');
+    newRow.dataset.roll = roll;
+    newRow.innerHTML = `
+        <td><strong>${name}</strong></td>
+        <td>${roll}</td>
+        <td>${time}</td>
+        <td><span class="status-badge">Verified</span></td>
+    `;
+    tbody.prepend(newRow);
+    
+    const badge = document.getElementById('liveCountBadge');
+    if (badge) {
+        const count = tbody.querySelectorAll('tr[data-roll]').length;
+        badge.textContent = `Present: ${count}`;
     }
 }
 
@@ -424,7 +499,6 @@ function recordStudentAttendance(studentName, rollNumber) {
     const subject = sessionStorage.getItem('current_attendance_subject') || "CS-301: Machine Learning";
     const activeSessionId = sessionStorage.getItem('active_scanned_session_id') || 'default_session';
 
-    // Structured Attendance Object
     const attendanceRecord = {
         name: studentName,
         rollNumber: rollNumber,
@@ -437,10 +511,22 @@ function recordStudentAttendance(studentName, rollNumber) {
 
     // 1. Push to Firebase Realtime Database (Cloud Sync to Faculty Screen)
     if (db) {
-        db.ref('attendance/' + activeSessionId).push(attendanceRecord);
+        db.ref('attendance/' + activeSessionId).push(attendanceRecord)
+            .then(() => {
+                alert(`✅ Attendance marked & synced for ${attendanceRecord.name}!`);
+                resetToScanner(); // Re-open scanner automatically
+            })
+            .catch((err) => {
+                console.error("Firebase push error:", err);
+                alert(`⚠️ Attendance recorded locally, but cloud sync encountered an error.`);
+                resetToScanner();
+            });
+    } else {
+        alert(`✅ Attendance recorded for ${attendanceRecord.name}!`);
+        resetToScanner();
     }
 
-    // 2. Fallback / Same-device Local Broadcast
+    // 2. Same-Device/Local Broadcast
     appendAttendanceToFacultyTable(attendanceRecord.name, attendanceRecord.rollNumber, attendanceRecord.timestamp);
     localStorage.setItem('latest_attendance_entry', JSON.stringify(attendanceRecord));
 
@@ -458,8 +544,6 @@ function recordStudentAttendance(studentName, rollNumber) {
         `;
         studentLog.prepend(studentRow);
     }
-    
-    alert(`✅ Biometric Match Confirmed!\nAttendance marked for ${attendanceRecord.name} (${attendanceRecord.rollNumber})`);
 }
 
 function simulateScanSuccess() {
