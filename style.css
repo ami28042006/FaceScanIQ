@@ -1,0 +1,343 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+body {
+    background-color: #0b0f19;
+    color: #f8fafc;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Background Image - Login Screen (Crisp & Sharp) */
+.bg-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: url('img.1.png');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    opacity: 1;
+    z-index: -1;
+    transition: all 0.4s ease-in-out;
+}
+
+/* Background - Dashboard Portals (Switches automatically on sign-in) */
+.bg-overlay.dashboard-bg {
+    background-image: none !important;
+    background: radial-gradient(circle at top right, #1e293b, #0b0f19 80%) !important;
+}
+
+/* Auth Container - Anchored to the Right Side */
+#auth-screen {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 20px 80px 20px 20px;
+    background: transparent;
+}
+
+/* Auth Card - Solid Background Without Blur */
+.container {
+    width: 100%;
+    max-width: 440px;
+    background: #111827;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 16px;
+    padding: 32px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+}
+
+/* Brand Header & Fixed Logo Display */
+.brand-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.brand-logo-img {
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+    min-height: 42px;
+    object-fit: contain;
+    display: block;
+}
+
+.brand-name {
+    font-size: 22px;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.brand-name span {
+    color: #38bdf8;
+}
+
+.mode-toggle {
+    display: flex;
+    background: #0b0f19;
+    padding: 4px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+}
+
+.mode-btn {
+    flex: 1;
+    padding: 8px;
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    font-weight: 600;
+    font-size: 14px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.mode-btn.active {
+    background: #1e293b;
+    color: #ffffff;
+}
+
+.roles {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+}
+
+.role {
+    flex: 1;
+    padding: 10px 4px;
+    background: #0b0f19;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: #94a3b8;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.role.active {
+    background: rgba(56, 189, 248, 0.15);
+    border-color: #38bdf8;
+    color: #38bdf8;
+}
+
+.input-group {
+    margin-bottom: 16px;
+}
+
+.input-group label {
+    display: block;
+    font-size: 13px;
+    color: #94a3b8;
+    margin-bottom: 6px;
+}
+
+.input-group input, 
+.input-group select,
+.input-group textarea {
+    width: 100%;
+    padding: 12px 14px;
+    background: #0b0f19;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    border-radius: 8px;
+    font-size: 14px;
+    outline: none;
+}
+
+.input-group input:focus,
+.input-group select:focus,
+.input-group textarea:focus {
+    border-color: #38bdf8;
+}
+
+.login-btn {
+    width: 100%;
+    padding: 12px;
+    background: #38bdf8;
+    color: #0b0f19;
+    font-weight: 700;
+    font-size: 15px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+/* Dashboard */
+.navbar {
+    height: 70px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    background: #111827;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.logout-btn {
+    padding: 8px 16px;
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.dash-content {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    padding: 24px 16px;
+}
+
+.dash-card {
+    background: #111827;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 24px;
+}
+
+.subtitle {
+    color: #94a3b8;
+    font-size: 13px;
+    margin-top: 4px;
+}
+
+.grid-2 {
+    display: flex;
+    gap: 16px;
+    margin-top: 14px;
+}
+
+.grid-2 > div {
+    flex: 1;
+}
+
+/* QR and Camera Elements */
+.qr-container {
+    text-align: center;
+    margin-top: 20px;
+}
+
+#qrcode {
+    background: #ffffff;
+    padding: 12px;
+    border-radius: 8px;
+    display: inline-block;
+}
+
+.timer-badge {
+    margin-top: 10px;
+    color: #38bdf8;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+#qr-reader {
+    width: 100%;
+    max-width: 320px;
+    margin: 16px auto;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.video-container {
+    width: 100%;
+    max-width: 320px;
+    aspect-ratio: 1/1;
+    margin: 16px auto;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #000;
+}
+
+#faceVideo {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Tables & Stats */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+
+th, td {
+    padding: 12px;
+    text-align: left;
+    font-size: 13px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+th {
+    color: #94a3b8;
+    font-weight: 600;
+}
+
+.status-badge {
+    background: rgba(56, 189, 248, 0.15);
+    color: #38bdf8;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 12px;
+}
+
+.badge {
+    background: rgba(56, 189, 248, 0.15);
+    color: #38bdf8;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.stat-box {
+    background: #0b0f19;
+    padding: 18px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.stat-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+}
+
+.avatar-img {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #38bdf8;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+    #auth-screen {
+        justify-content: center;
+        padding: 20px;
+    }
+    
+    .grid-2 {
+        flex-direction: column;
+        gap: 10px;
+    }
+}

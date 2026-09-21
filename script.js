@@ -61,6 +61,12 @@ function handleAuthSubmit(event) {
     document.getElementById('auth-screen').style.display = 'none';
     document.getElementById('dashboard-screen').style.display = 'block';
 
+    // Switch background dynamically for the portal dashboard
+    const bgOverlay = document.querySelector('.bg-overlay');
+    if (bgOverlay) {
+        bgOverlay.classList.add('dashboard-bg');
+    }
+
     document.getElementById('faculty-panel').style.display = 'none';
     document.getElementById('student-panel').style.display = 'none';
     document.getElementById('parent-panel').style.display = 'none';
@@ -83,6 +89,12 @@ function handleAuthSubmit(event) {
 
 function logout() {
     stopAllCameras();
+
+    // Revert back to the initial login background
+    const bgOverlay = document.querySelector('.bg-overlay');
+    if (bgOverlay) {
+        bgOverlay.classList.remove('dashboard-bg');
+    }
 
     document.getElementById('dashboard-screen').style.display = 'none';
     document.getElementById('auth-screen').style.display = 'flex';
