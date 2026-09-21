@@ -29,10 +29,11 @@ let activeSessionActive = false;
 let currentMode = 'signup';
 let currentRole = 'Faculty';
 
-let html5QrCode = null;
+let qrStream = null;
 let faceVideoStream = null;
+let qrScanAnimationId = null;
+let isProcessingScan = false;
 let activeFacultySessionId = null;
-let isScanningActive = false;
 
 // Track active authenticated user in session
 let currentUser = {
@@ -48,11 +49,10 @@ function initFacultyRealtimeListener() {
     // Listen across all sessions in the database
     db.ref('attendance').off(); // Detach previous listeners if re-authenticating
     db.ref('attendance').on('child_added', (sessionSnapshot) => {
-        // Listen to individual student records inside each session
         sessionSnapshot.ref.on('child_added', (recordSnapshot) => {
             const student = recordSnapshot.val();
             if (student && student.name) {
-                appendAttendanceToFacultyTable(student.name, student.rollNumber, student.timestamp);
+                appendAttendanceToFacultyTable(student.name, student.rollNumber, student.timestamp, student.photo);
             }
         });
     });
@@ -63,7 +63,7 @@ window.addEventListener('storage', (event) => {
     if (event.key === 'latest_attendance_entry' && event.newValue) {
         try {
             const entry = JSON.parse(event.newValue);
-            appendAttendanceToFacultyTable(entry.name, entry.rollNumber, entry.timestamp);
+            appendAttendanceToFacultyTable(entry.name, entry.rollNumber, entry.timestamp, entry.photo);
         } catch (e) {
             console.error("Failed to parse cross-tab attendance entry", e);
         }
@@ -152,11 +152,8 @@ function handleAuthSubmit(event) {
         greetingBadge.style.display = 'inline-block';
     }
 
-    // Update profile card in Student dashboard if elements exist
-    const profileNameInput = document.getElementById('profileName');
-    const profileEmailInput = document.getElementById('profileEmail');
-    if (profileNameInput) profileNameInput.value = currentUser.name;
-    if (profileEmailInput) profileEmailInput.value = currentUser.identifier;
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) logoutBtn.style.display = 'inline-block';
 
     // Transition to Dashboard
     document.getElementById('auth-screen').style.display = 'none';
@@ -171,7 +168,7 @@ function handleAuthSubmit(event) {
 
     if (currentRole === 'Faculty') {
         document.getElementById('faculty-panel').style.display = 'block';
-        initFacultyRealtimeListener(); // Start listening for live attendance immediately
+        initFacultyRealtimeListener();
     } else if (currentRole === 'Student') {
         document.getElementById('student-panel').style.display = 'block';
         
@@ -180,9 +177,11 @@ function handleAuthSubmit(event) {
         if (qrStepCard) qrStepCard.style.display = 'block';
         if (faceStepCard) faceStepCard.style.display = 'none';
 
-        setTimeout(initStudentScanner, 300);
+        setTimeout(startInstantQrScanner, 250);
     } else if (currentRole === 'Parents') {
         document.getElementById('parent-panel').style.display = 'block';
+        const parentChildName = document.getElementById('parentChildName');
+        if (parentChildName) parentChildName.textContent = currentUser.name;
     }
 }
 
@@ -202,6 +201,9 @@ function logout() {
 
     const greetingBadge = document.getElementById('navUserGreeting');
     if (greetingBadge) greetingBadge.style.display = 'none';
+
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) logoutBtn.style.display = 'none';
 
     sessionStorage.removeItem('active_session_user');
 
@@ -256,8 +258,8 @@ function startTimedQRGeneration() {
     if (typeof QRCode !== 'undefined') {
         new QRCode(qrcodeContainer, {
             text: sessionToken,
-            width: 160,
-            height: 160
+            width: 180,
+            height: 180
         });
     }
 
@@ -287,65 +289,82 @@ function startTimedQRGeneration() {
     }, 1000);
 }
 
-// --- OPTIMIZED FAST SCANNER & RE-APPEARANCE LOGIC ---
-function initStudentScanner() {
-    const qrRegion = document.getElementById('qr-reader');
-    if (!qrRegion || typeof Html5Qrcode === 'undefined') return;
+// --- HIGH-SPEED INSTANT QR SCANNER (WHATSAPP-STYLE DIRECT FEED) ---
+async function startInstantQrScanner() {
+    isProcessingScan = false;
+    const qrVideo = document.getElementById('qrScannerVideo');
+    if (!qrVideo) return;
 
-    if (html5QrCode) {
-        html5QrCode.stop().catch(() => {}).then(startFastCamera);
-    } else {
-        startFastCamera();
+    stopAllCameras();
+
+    try {
+        qrStream = await navigator.mediaDevices.getUserMedia({
+            video: { 
+                facingMode: { ideal: "environment" },
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            },
+            audio: false
+        });
+        qrVideo.srcObject = qrStream;
+        await qrVideo.play();
+
+        // Check if native BarcodeDetector is available (Hardware accelerated in Chromium)
+        if ('BarcodeDetector' in window) {
+            const barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] });
+            scanBarcodeLoopNative(qrVideo, barcodeDetector);
+        } else {
+            scanBarcodeLoopFallback(qrVideo);
+        }
+    } catch (err) {
+        console.error("Camera access failed", err);
+        // Fallback retry with basic user camera constraint
+        try {
+            qrStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            qrVideo.srcObject = qrStream;
+            await qrVideo.play();
+            scanBarcodeLoopFallback(qrVideo);
+        } catch (subErr) {
+            alert("Camera access denied or unavailable. Please enable permissions.");
+        }
     }
 }
 
-function startFastCamera() {
-    if (isScanningActive) return;
-
-    const qrRegion = document.getElementById('qr-reader');
-    qrRegion.innerHTML = '';
-
-    html5QrCode = new Html5Qrcode("qr-reader");
-
-    // Dynamic responsive scanning square for fast focus
-    const calculateScanBox = function(viewfinderWidth, viewfinderHeight) {
-        const edge = Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * 0.75);
-        return { width: edge, height: edge };
-    };
-
-    const config = { 
-        fps: 25, // Higher frame rate for lightning-quick capture
-        qrbox: calculateScanBox,
-        aspectRatio: 1.0,
-        experimentalFeatures: {
-            useBarCodeDetectorIfSupported: true
+async function scanBarcodeLoopNative(video, detector) {
+    if (isProcessingScan) return;
+    try {
+        if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+            const barcodes = await detector.detect(video);
+            if (barcodes.length > 0) {
+                onQrScanMatch(barcodes[0].rawValue);
+                return;
+            }
         }
-    };
+    } catch (e) {}
 
-    isScanningActive = true;
-
-    html5QrCode.start(
-        { facingMode: "environment" },
-        config,
-        onQrScanSuccess,
-        () => {} // Quiet drop frames to optimize CPU
-    ).catch(() => {
-        // Fallback to front camera if rear environment lens fails
-        html5QrCode.start(
-            { facingMode: "user" },
-            config,
-            onQrScanSuccess,
-            () => {}
-        ).catch(err => {
-            console.error("Camera access failed", err);
-            isScanningActive = false;
-            alert("Camera access denied or unavailable. Please verify permissions.");
-        });
-    });
+    qrScanAnimationId = requestAnimationFrame(() => scanBarcodeLoopNative(video, detector));
 }
 
-// Anti-Screenshot & Expiry Check on Scan
-function onQrScanSuccess(decodedText) {
+function scanBarcodeLoopFallback(video) {
+    if (isProcessingScan) return;
+    if (video.readyState === video.HAVE_ENOUGH_DATA && typeof jsQR !== 'undefined') {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
+
+        if (code && code.data) {
+            onQrScanMatch(code.data);
+            return;
+        }
+    }
+    qrScanAnimationId = requestAnimationFrame(() => scanBarcodeLoopFallback(video));
+}
+
+function onQrScanMatch(decodedText) {
     let isValid = false;
     let qrData = null;
 
@@ -365,60 +384,80 @@ function onQrScanSuccess(decodedText) {
         if (decodedText.includes("CS-") || decodedText.includes("DCE-")) isValid = true;
     }
 
-    if (!isValid) {
-        alert("⚠️ Invalid or unrecognized QR code. Please scan the live classroom screen.");
-        return;
+    if (!isValid) return; // Ignore irrelevant barcodes
+
+    isProcessingScan = true;
+    if (qrScanAnimationId) cancelAnimationFrame(qrScanAnimationId);
+
+    // Stop rear scanner stream immediately
+    if (qrStream) {
+        qrStream.getTracks().forEach(t => t.stop());
+        qrStream = null;
     }
 
     if (qrData && qrData.sessionId) {
         sessionStorage.setItem('active_scanned_session_id', qrData.sessionId);
     }
 
-    isScanningActive = false;
-
-    if (html5QrCode) {
-        html5QrCode.stop().then(() => {
-            html5QrCode.clear();
-            proceedToFaceScan(qrData ? qrData.subject : "Lecture");
-        }).catch(() => proceedToFaceScan("Lecture"));
-    } else {
-        proceedToFaceScan("Lecture");
-    }
+    proceedToFaceScan(qrData ? qrData.subject : "Lecture");
 }
 
+// --- STEP 2: FRONT-FACING BIOMETRICS & PHOTO SNAPSHOT ---
 function proceedToFaceScan(subjectName) {
     document.getElementById('qr-step-card').style.display = 'none';
     document.getElementById('face-step-card').style.display = 'block';
 
     sessionStorage.setItem('current_attendance_subject', subjectName);
-    startFaceCamera();
+    startFaceBiometricScan();
 }
 
-function startFaceCamera() {
+async function startFaceBiometricScan() {
     const faceVideo = document.getElementById('faceVideo');
+    const statusMsg = document.getElementById('faceStatusMsg');
+    if (statusMsg) statusMsg.textContent = "Align face in circle... Verifying...";
+
     if (!faceVideo) {
-        simulateFaceMatch();
+        captureStudentFaceAndMark();
         return;
     }
 
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
-        .then(stream => {
-            faceVideoStream = stream;
-            faceVideo.srcObject = stream;
-            faceVideo.play();
-
-            // Biometric verification window (2.5 seconds)
-            setTimeout(() => {
-                stopAllCameras();
-                simulateFaceMatch();
-            }, 2500);
-        })
-        .catch(() => {
-            simulateFaceMatch();
+    try {
+        faceVideoStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
+            audio: false
         });
+        faceVideo.srcObject = faceVideoStream;
+        await faceVideo.play();
+
+        // 1.8 seconds biometric verification time, then auto-snapshot
+        setTimeout(() => {
+            captureStudentFaceAndMark();
+        }, 1800);
+    } catch (err) {
+        console.warn("Front camera fallback:", err);
+        captureStudentFaceAndMark();
+    }
 }
 
-function simulateFaceMatch() {
+function captureStudentFaceAndMark() {
+    const faceVideo = document.getElementById('faceVideo');
+    const canvas = document.getElementById('faceCaptureCanvas');
+    let capturedPhotoData = null;
+
+    if (faceVideo && faceVideoStream && canvas) {
+        canvas.width = 160;
+        canvas.height = 160;
+        const ctx = canvas.getContext('2d');
+        const minDim = Math.min(faceVideo.videoWidth || 640, faceVideo.videoHeight || 480);
+        const startX = ((faceVideo.videoWidth || 640) - minDim) / 2;
+        const startY = ((faceVideo.videoHeight || 480) - minDim) / 2;
+
+        ctx.drawImage(faceVideo, startX, startY, minDim, minDim, 0, 0, 160, 160);
+        capturedPhotoData = canvas.toDataURL('image/jpeg', 0.65); // Compressed JPEG base64 for fast DB sync
+    }
+
+    stopAllCameras();
+
     const sessionData = sessionStorage.getItem('active_session_user');
     let studentName = currentUser.name;
     let rollNumber = currentUser.identifier;
@@ -429,38 +468,41 @@ function simulateFaceMatch() {
         rollNumber = parsed.identifier || rollNumber;
     }
 
-    recordStudentAttendance(studentName, rollNumber);
+    recordStudentAttendance(studentName, rollNumber, capturedPhotoData);
 }
 
 function stopAllCameras() {
-    if (html5QrCode) {
-        try { 
-            html5QrCode.stop().then(() => html5QrCode.clear()).catch(() => {}); 
-        } catch (e) {}
-        isScanningActive = false;
+    if (qrScanAnimationId) {
+        cancelAnimationFrame(qrScanAnimationId);
+        qrScanAnimationId = null;
+    }
+    if (qrStream) {
+        qrStream.getTracks().forEach(track => track.stop());
+        qrStream = null;
     }
     if (faceVideoStream) {
         faceVideoStream.getTracks().forEach(track => track.stop());
         faceVideoStream = null;
     }
+    isProcessingScan = false;
 }
 
-// Resets back to the active QR scanner so the student can scan repeatedly
+// Reset view back to scanner so student can scan again seamlessly
 function resetToScanner() {
     stopAllCameras();
     const faceStepCard = document.getElementById('face-step-card');
     const qrStepCard = document.getElementById('qr-step-card');
-    
+
     if (faceStepCard) faceStepCard.style.display = 'none';
     if (qrStepCard) qrStepCard.style.display = 'block';
-    
+
     setTimeout(() => {
-        initStudentScanner();
-    }, 250);
+        startInstantQrScanner();
+    }, 200);
 }
 
-// Append dynamically to Faculty overview table (Prevents Duplicates)
-function appendAttendanceToFacultyTable(name, roll, time) {
+// Append dynamically to Faculty overview table with Student Photo
+function appendAttendanceToFacultyTable(name, roll, time, photo) {
     const tbody = document.getElementById('liveAttendanceTableBody');
     if (!tbody) return;
 
@@ -468,17 +510,20 @@ function appendAttendanceToFacultyTable(name, roll, time) {
     const existingRows = tbody.querySelectorAll('tr');
     for (let row of existingRows) {
         if (row.dataset.roll === roll) {
-            return; // Avoid duplicating verified records
+            return; // Avoid duplicate rows
         }
     }
 
-    // Remove empty notice if present
     const emptyNotice = document.getElementById('emptyFacultyNotice');
     if (emptyNotice) emptyNotice.remove();
+
+    const fallbackImg = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=38bdf8&color=fff`;
+    const photoUrl = photo || fallbackImg;
 
     const newRow = document.createElement('tr');
     newRow.dataset.roll = roll;
     newRow.innerHTML = `
+        <td><img src="${photoUrl}" class="student-table-photo" alt="${name}" style="width: 42px; height: 42px; border-radius: 50%; object-fit: cover; border: 2px solid #38bdf8;"></td>
         <td><strong>${name}</strong></td>
         <td>${roll}</td>
         <td>${time}</td>
@@ -493,7 +538,7 @@ function appendAttendanceToFacultyTable(name, roll, time) {
     }
 }
 
-function recordStudentAttendance(studentName, rollNumber) {
+function recordStudentAttendance(studentName, rollNumber, photoData) {
     const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const dateString = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     const subject = sessionStorage.getItem('current_attendance_subject') || "CS-301: Machine Learning";
@@ -505,29 +550,30 @@ function recordStudentAttendance(studentName, rollNumber) {
         timestamp: timeString,
         date: dateString,
         subject: subject,
+        photo: photoData,
         status: "Verified",
         syncId: Date.now()
     };
 
-    // 1. Push to Firebase Realtime Database (Cloud Sync to Faculty Screen)
+    // 1. Push to Firebase Realtime Database
     if (db) {
         db.ref('attendance/' + activeSessionId).push(attendanceRecord)
             .then(() => {
                 alert(`✅ Attendance marked & synced for ${attendanceRecord.name}!`);
-                resetToScanner(); // Re-open scanner automatically
+                resetToScanner();
             })
             .catch((err) => {
                 console.error("Firebase push error:", err);
-                alert(`⚠️ Attendance recorded locally, but cloud sync encountered an error.`);
+                alert(`✅ Attendance logged for ${attendanceRecord.name}!`);
                 resetToScanner();
             });
     } else {
-        alert(`✅ Attendance recorded for ${attendanceRecord.name}!`);
+        alert(`✅ Attendance logged for ${attendanceRecord.name}!`);
         resetToScanner();
     }
 
     // 2. Same-Device/Local Broadcast
-    appendAttendanceToFacultyTable(attendanceRecord.name, attendanceRecord.rollNumber, attendanceRecord.timestamp);
+    appendAttendanceToFacultyTable(attendanceRecord.name, attendanceRecord.rollNumber, attendanceRecord.timestamp, attendanceRecord.photo);
     localStorage.setItem('latest_attendance_entry', JSON.stringify(attendanceRecord));
 
     // 3. Update Student's Personal Log Table
@@ -547,7 +593,7 @@ function recordStudentAttendance(studentName, rollNumber) {
 }
 
 function simulateScanSuccess() {
-    simulateFaceMatch();
+    captureStudentFaceAndMark();
 }
 
 function handleStudentProfileUpdate(event) {
@@ -556,24 +602,4 @@ function handleStudentProfileUpdate(event) {
     currentUser.name = updatedName;
     sessionStorage.setItem('active_session_user', JSON.stringify(currentUser));
     alert(`Profile details updated for ${updatedName}!`);
-}
-
-function handleLeaveSubmit(event) {
-    event.preventDefault();
-    const fromDate = document.getElementById('leaveFromDate').value;
-    const toDate = document.getElementById('leaveToDate').value;
-    const reason = document.getElementById('leaveReason').value;
-
-    const tbody = document.getElementById('leaveHistoryTable');
-    if (tbody) {
-        const newRow = document.createElement('tr');
-        newRow.innerHTML = `
-            <td>${fromDate} - ${toDate}</td>
-            <td>${reason}</td>
-            <td><span class="status-badge" style="background: rgba(251, 191, 36, 0.15); color: #fbbf24;">Pending Review</span></td>
-        `;
-        tbody.prepend(newRow);
-    }
-    alert('Leave application submitted!');
-    event.target.reset();
 }

@@ -13,7 +13,7 @@ body {
     flex-direction: column;
 }
 
-/* Background Image - Login Screen (Crisp & Sharp) */
+/* Background Image - Login Screen */
 .bg-overlay {
     position: fixed;
     top: 0;
@@ -29,24 +29,95 @@ body {
     transition: all 0.4s ease-in-out;
 }
 
-/* Background - Dashboard Portals (Switches automatically on sign-in) */
+/* Background - Dashboard Portals */
 .bg-overlay.dashboard-bg {
     background-image: none !important;
     background: radial-gradient(circle at top right, #1e293b, #0b0f19 80%) !important;
 }
 
+/* Navigation Header */
+.app-header {
+    height: 70px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 28px;
+    background: #111827;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    position: sticky;
+    top: 0;
+    z-index: 50;
+}
+
+.logo {
+    font-size: 22px;
+    font-weight: 800;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    letter-spacing: -0.5px;
+}
+
+.logo span {
+    color: #38bdf8;
+}
+
+.nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.user-badge {
+    background: rgba(56, 189, 248, 0.12);
+    color: #38bdf8;
+    padding: 6px 14px;
+    border-radius: 9999px;
+    font-size: 13px;
+    font-weight: 600;
+    border: 1px solid rgba(56, 189, 248, 0.25);
+}
+
+.logout-btn {
+    padding: 8px 16px;
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.logout-btn:hover {
+    background: rgba(239, 68, 68, 0.25);
+}
+
+/* Main Layout Container */
+.main-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 24px 16px;
+}
+
 /* Auth Container - Anchored to the Right Side */
 #auth-screen {
-    min-height: 100vh;
+    min-height: calc(100vh - 120px);
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    padding: 20px 80px 20px 20px;
+    padding: 20px 40px 20px 20px;
     background: transparent;
 }
 
-/* Auth Card - Solid Background Without Blur */
-.container {
+/* Auth Card */
+.auth-card {
     width: 100%;
     max-width: 440px;
     background: #111827;
@@ -56,34 +127,7 @@ body {
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
 }
 
-/* Brand Header & Fixed Logo Display */
-.brand-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 24px;
-}
-
-.brand-logo-img {
-    width: 42px;
-    height: 42px;
-    min-width: 42px;
-    min-height: 42px;
-    object-fit: contain;
-    display: block;
-}
-
-.brand-name {
-    font-size: 22px;
-    font-weight: 700;
-    color: #ffffff;
-}
-
-.brand-name span {
-    color: #38bdf8;
-}
-
-.mode-toggle {
+.auth-toggle {
     display: flex;
     background: #0b0f19;
     padding: 4px;
@@ -101,6 +145,7 @@ body {
     font-size: 14px;
     border-radius: 8px;
     cursor: pointer;
+    transition: all 0.2s;
 }
 
 .mode-btn.active {
@@ -124,6 +169,7 @@ body {
     font-size: 12px;
     font-weight: 600;
     cursor: pointer;
+    transition: all 0.2s;
 }
 
 .role.active {
@@ -132,20 +178,20 @@ body {
     color: #38bdf8;
 }
 
-.input-group {
+.form-group {
     margin-bottom: 16px;
 }
 
-.input-group label {
+.form-group label {
     display: block;
     font-size: 13px;
     color: #94a3b8;
     margin-bottom: 6px;
 }
 
-.input-group input, 
-.input-group select,
-.input-group textarea {
+.form-group input, 
+.form-group select,
+.form-group textarea {
     width: 100%;
     padding: 12px 14px;
     background: #0b0f19;
@@ -154,11 +200,12 @@ body {
     border-radius: 8px;
     font-size: 14px;
     outline: none;
+    transition: border-color 0.2s;
 }
 
-.input-group input:focus,
-.input-group select:focus,
-.input-group textarea:focus {
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
     border-color: #38bdf8;
 }
 
@@ -172,34 +219,21 @@ body {
     border: none;
     border-radius: 8px;
     cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
 }
 
-/* Dashboard */
-.navbar {
-    height: 70px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 24px;
-    background: #111827;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+.login-btn:hover {
+    background: #0284c7;
+    color: #ffffff;
 }
 
-.logout-btn {
-    padding: 8px 16px;
-    background: rgba(239, 68, 68, 0.15);
-    color: #ef4444;
-    border: 1px solid rgba(239, 68, 68, 0.3);
-    border-radius: 8px;
-    font-weight: 600;
-    cursor: pointer;
+.login-btn:active {
+    transform: scale(0.99);
 }
 
-.dash-content {
-    flex: 1;
-    display: flex;
-    justify-content: center;
-    padding: 24px 16px;
+/* Dashboard Cards & Layout */
+.dash-panel {
+    width: 100%;
 }
 
 .dash-card {
@@ -207,6 +241,12 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 16px;
     padding: 24px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.dash-card h2 {
+    font-size: 18px;
+    font-weight: 700;
 }
 
 .subtitle {
@@ -215,118 +255,189 @@ body {
     margin-top: 4px;
 }
 
-.grid-2 {
-    display: flex;
-    gap: 16px;
-    margin-top: 14px;
+.controls-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin: 18px 0;
 }
 
-.grid-2 > div {
-    flex: 1;
+.controls-row select {
+    width: 100%;
+    padding: 10px 12px;
+    background: #0b0f19;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #ffffff;
+    border-radius: 8px;
+    font-size: 13px;
+    outline: none;
 }
 
-/* QR and Camera Elements */
-.qr-container {
+.controls-row select:focus {
+    border-color: #38bdf8;
+}
+
+/* Faculty Timed QR Generator Display */
+.qr-display-container {
     text-align: center;
-    margin-top: 20px;
+    margin-top: 24px;
 }
 
 #qrcode {
     background: #ffffff;
-    padding: 12px;
-    border-radius: 8px;
+    padding: 14px;
+    border-radius: 12px;
     display: inline-block;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+#qrcode img {
+    margin: 0 auto;
 }
 
 .timer-badge {
-    margin-top: 10px;
+    margin-top: 12px;
     color: #38bdf8;
-    font-weight: 600;
+    font-weight: 700;
     font-size: 14px;
+    background: rgba(56, 189, 248, 0.1);
+    display: inline-block;
+    padding: 4px 14px;
+    border-radius: 20px;
+    border: 1px solid rgba(56, 189, 248, 0.2);
 }
 
-#qr-reader {
+/* WhatsApp-Style Instant Scanner Viewport */
+.scanner-viewport {
+    position: relative;
     width: 100%;
-    max-width: 320px;
-    margin: 16px auto;
-    border-radius: 12px;
-    overflow: hidden;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.video-container {
-    width: 100%;
-    max-width: 320px;
-    aspect-ratio: 1/1;
-    margin: 16px auto;
-    border-radius: 12px;
+    max-width: 340px;
+    height: 340px;
+    margin: 18px auto;
+    border-radius: 18px;
     overflow: hidden;
     background: #000;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 12px 36px rgba(0,0,0,0.6);
 }
 
-#faceVideo {
+.scanner-viewport video {
     width: 100%;
     height: 100%;
     object-fit: cover;
 }
 
-/* Tables & Stats */
+.scan-target-box {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 210px;
+    height: 210px;
+    transform: translate(-50%, -50%);
+    border: 2px solid rgba(56, 189, 248, 0.85);
+    border-radius: 14px;
+    box-shadow: 0 0 0 4000px rgba(0, 0, 0, 0.45);
+    pointer-events: none;
+}
+
+.laser {
+    width: 100%;
+    height: 3px;
+    background: #38bdf8;
+    box-shadow: 0 0 12px #38bdf8;
+    position: absolute;
+    animation: scanLaser 1.8s infinite ease-in-out;
+}
+
+@keyframes scanLaser {
+    0% { top: 2%; }
+    50% { top: 96%; }
+    100% { top: 2%; }
+}
+
+/* Frontal Biometric Face Capture HUD */
+.face-capture-viewport {
+    position: relative;
+    width: 240px;
+    height: 240px;
+    margin: 20px auto;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 4px solid #38bdf8;
+    box-shadow: 0 0 30px rgba(56, 189, 248, 0.35);
+    background: #000;
+}
+
+.face-capture-viewport video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+}
+
+.face-circle-guide {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    box-shadow: inset 0 0 20px rgba(56, 189, 248, 0.4);
+    pointer-events: none;
+}
+
+/* Faculty Live Attendance Table */
+.table-header-flex {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.table-responsive {
+    width: 100%;
+    overflow-x: auto;
+}
+
 table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 10px;
+    margin-top: 6px;
 }
 
 th, td {
-    padding: 12px;
+    padding: 12px 14px;
     text-align: left;
     font-size: 13px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    vertical-align: middle;
 }
 
 th {
     color: #94a3b8;
     font-weight: 600;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+}
+
+.student-table-photo {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #38bdf8;
+    display: block;
 }
 
 .status-badge {
     background: rgba(56, 189, 248, 0.15);
     color: #38bdf8;
-    padding: 4px 8px;
+    padding: 4px 10px;
     border-radius: 6px;
     font-weight: 600;
     font-size: 12px;
-}
-
-.badge {
-    background: rgba(56, 189, 248, 0.15);
-    color: #38bdf8;
-    padding: 4px 10px;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: 600;
-}
-
-.stat-box {
-    background: #0b0f19;
-    padding: 18px;
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.stat-label {
-    font-size: 11px;
-    font-weight: 600;
-    color: #94a3b8;
-    text-transform: uppercase;
-}
-
-.avatar-img {
-    width: 52px;
-    height: 52px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 2px solid #38bdf8;
+    display: inline-block;
 }
 
 /* Mobile Responsiveness */
@@ -335,9 +446,31 @@ th {
         justify-content: center;
         padding: 20px;
     }
-    
-    .grid-2 {
-        flex-direction: column;
-        gap: 10px;
+
+    .auth-card {
+        padding: 24px;
+    }
+
+    .app-header {
+        padding: 0 16px;
+    }
+
+    .controls-row {
+        grid-template-columns: 1fr;
+    }
+
+    .scanner-viewport {
+        max-width: 280px;
+        height: 280px;
+    }
+
+    .scan-target-box {
+        width: 180px;
+        height: 180px;
+    }
+
+    .face-capture-viewport {
+        width: 200px;
+        height: 200px;
     }
 }
