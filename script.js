@@ -26,13 +26,15 @@ try {
 // --- STATE MANAGEMENT ---
 let qrExpirationTimer = null;
 let activeSessionActive = false;
-let currentMode = 'signup';
+let currentMode = 'signin';
 let currentRole = 'Faculty';
 
 let qrStream = null;
 let faceVideoStream = null;
 let qrScanAnimationId = null;
 let isProcessingScan = false;
+let isBiometricCapturing = false;
+let biometricTimeout = null;
 let activeFacultySessionId = null;
 
 // Track active authenticated user in session
@@ -46,8 +48,10 @@ let currentUser = {
 function initFacultyRealtimeListener() {
     if (!db) return;
     
-    // Listen across all sessions in the database
-    db.ref('attendance').off(); // Detach previous listeners if re-authenticating
+    // Detach any previous listeners
+    db.ref('attendance').off();
+    
+    // Listen across all sessions
     db.ref('attendance').on('child_added', (sessionSnapshot) => {
         sessionSnapshot.ref.on('child_added', (recordSnapshot) => {
             const student = recordSnapshot.val();
@@ -78,45 +82,49 @@ function setAuthMode(mode) {
     const submitBtn = document.getElementById('submitBtn');
 
     if (mode === 'signup') {
-        btnSignUp.classList.add('active');
-        btnSignIn.classList.remove('active');
-        nameGroup.style.display = 'block';
-        document.getElementById('nameInput').setAttribute('required', 'true');
-        submitBtn.textContent = 'Create Account →';
+        if (btnSignUp) btnSignUp.classList.add('active');
+        if (btnSignIn) btnSignIn.classList.remove('active');
+        if (nameGroup) nameGroup.style.display = 'block';
+        const nameInput = document.getElementById('nameInput');
+        if (nameInput) nameInput.setAttribute('required', 'true');
+        if (submitBtn) submitBtn.textContent = 'Create Account →';
     } else {
-        btnSignIn.classList.add('active');
-        btnSignUp.classList.remove('active');
-        nameGroup.style.display = 'none';
-        document.getElementById('nameInput').removeAttribute('required');
-        submitBtn.textContent = 'Sign In →';
+        if (btnSignIn) btnSignIn.classList.add('active');
+        if (btnSignUp) btnSignUp.classList.remove('active');
+        if (nameGroup) nameGroup.style.display = 'none';
+        const nameInput = document.getElementById('nameInput');
+        if (nameInput) nameInput.removeAttribute('required');
+        if (submitBtn) submitBtn.textContent = 'Sign In →';
     }
 }
 
 function setRole(role, element) {
     currentRole = role;
     document.querySelectorAll('.roles .role').forEach(btn => btn.classList.remove('active'));
-    element.classList.add('active');
+    if (element) element.classList.add('active');
 
     const userLabel = document.getElementById('userLabel');
     const userInput = document.getElementById('userInput');
 
     if (role === 'Faculty') {
-        userLabel.textContent = 'Faculty Identification / Email';
-        userInput.placeholder = 'Enter faculty email';
+        if (userLabel) userLabel.textContent = 'Faculty Identification / Email';
+        if (userInput) userInput.placeholder = 'Enter faculty email';
     } else if (role === 'Student') {
-        userLabel.textContent = 'Student Roll Number / Email';
-        userInput.placeholder = 'Enter student roll number or email';
+        if (userLabel) userLabel.textContent = 'Student Roll Number / Email';
+        if (userInput) userInput.placeholder = 'Enter student roll number or email';
     } else if (role === 'Parents') {
-        userLabel.textContent = 'Parent Email / Registered Phone';
-        userInput.placeholder = 'Enter parent contact info';
+        if (userLabel) userLabel.textContent = 'Parent Email / Registered Phone';
+        if (userInput) userInput.placeholder = 'Enter parent contact info';
     }
 }
 
 function handleAuthSubmit(event) {
     event.preventDefault();
 
-    const enteredIdentifier = document.getElementById('userInput').value.trim();
-    const enteredName = document.getElementById('nameInput') ? document.getElementById('nameInput').value.trim() : '';
+    const userInputElem = document.getElementById('userInput');
+    const nameInputElem = document.getElementById('nameInput');
+    const enteredIdentifier = userInputElem ? userInputElem.value.trim() : '';
+    const enteredName = nameInputElem ? nameInputElem.value.trim() : '';
 
     if (currentMode === 'signup') {
         const profile = {
@@ -127,11 +135,12 @@ function handleAuthSubmit(event) {
         localStorage.setItem(`user_${enteredIdentifier}`, JSON.stringify(profile));
         alert('Account successfully created! Please sign in with your credentials.');
         setAuthMode('signin');
-        document.getElementById('passwordInput').value = '';
+        const passInput = document.getElementById('passwordInput');
+        if (passInput) passInput.value = '';
         return;
     }
 
-    // SIGN IN LOGIC: Resolve actual profile details
+    // Sign in logic
     const savedAccount = localStorage.getItem(`user_${enteredIdentifier}`);
     if (savedAccount) {
         currentUser = JSON.parse(savedAccount);
@@ -145,17 +154,18 @@ function handleAuthSubmit(event) {
 
     sessionStorage.setItem('active_session_user', JSON.stringify(currentUser));
 
-    // Display greeting in Navbar
+    // Display top navigation header
+    const topNavbar = document.getElementById('topNavbar');
+    if (topNavbar) topNavbar.style.display = 'flex';
+
+    // Display greeting badge
     const greetingBadge = document.getElementById('navUserGreeting');
     if (greetingBadge) {
         greetingBadge.textContent = `${currentUser.name} (${currentRole})`;
         greetingBadge.style.display = 'inline-block';
     }
 
-    const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) logoutBtn.style.display = 'inline-block';
-
-    // Transition to Dashboard
+    // Switch Screens
     document.getElementById('auth-screen').style.display = 'none';
     document.getElementById('dashboard-screen').style.display = 'block';
 
@@ -191,19 +201,21 @@ function logout() {
     const bgOverlay = document.querySelector('.bg-overlay');
     if (bgOverlay) bgOverlay.classList.remove('dashboard-bg');
 
+    const topNavbar = document.getElementById('topNavbar');
+    if (topNavbar) topNavbar.style.display = 'none';
+
     document.getElementById('dashboard-screen').style.display = 'none';
     document.getElementById('auth-screen').style.display = 'flex';
     
-    document.getElementById('userInput').value = '';
-    document.getElementById('passwordInput').value = '';
+    const userInput = document.getElementById('userInput');
+    if (userInput) userInput.value = '';
+    const passInput = document.getElementById('passwordInput');
+    if (passInput) passInput.value = '';
     const nameInput = document.getElementById('nameInput');
     if (nameInput) nameInput.value = '';
 
     const greetingBadge = document.getElementById('navUserGreeting');
     if (greetingBadge) greetingBadge.style.display = 'none';
-
-    const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) logoutBtn.style.display = 'none';
 
     sessionStorage.removeItem('active_session_user');
 
@@ -214,6 +226,7 @@ function logout() {
 function updateSubjectList() {
     const program = document.getElementById('programTypeSelect').value;
     const subjectSelect = document.getElementById('subjectSelect');
+    if (!subjectSelect) return;
     subjectSelect.innerHTML = '';
 
     if (program === 'Degree') {
@@ -235,13 +248,15 @@ function updateSubjectList() {
 // Faculty: Generate Timed QR with Realtime Database Cloud Sync
 function startTimedQRGeneration() {
     const qrcodeContainer = document.getElementById('qrcode');
+    if (!qrcodeContainer) return;
     qrcodeContainer.innerHTML = '';
-    const subject = document.getElementById('subjectSelect').value;
-    const program = document.getElementById('programTypeSelect').value;
-    const year = document.getElementById('academicYearSelect').value;
-    const validitySeconds = parseInt(document.getElementById('timeLimitSelect').value, 10);
 
-    // Unique session token for live cross-device sync
+    const subjectSelect = document.getElementById('subjectSelect');
+    const subject = subjectSelect ? subjectSelect.value : "General Lecture";
+    const program = document.getElementById('programTypeSelect') ? document.getElementById('programTypeSelect').value : "Degree";
+    const year = document.getElementById('academicYearSelect') ? document.getElementById('academicYearSelect').value : "1st Year";
+    const validitySeconds = parseInt(document.getElementById('timeLimitSelect').value, 10) || 60;
+
     activeFacultySessionId = 'sess_' + Date.now();
 
     const sessionData = {
@@ -269,21 +284,26 @@ function startTimedQRGeneration() {
 
     let timeLeft = validitySeconds;
     const timerDisplay = document.getElementById('timerDisplay');
-    timerDisplay.style.display = 'block';
+    if (timerDisplay) {
+        timerDisplay.style.display = 'block';
+        timerDisplay.textContent = `Expires in: ${timeLeft}s`;
+    }
 
     if (qrExpirationTimer) clearInterval(qrExpirationTimer);
 
     qrExpirationTimer = setInterval(() => {
         let mins = Math.floor(timeLeft / 60);
         let secs = timeLeft % 60;
-        timerDisplay.textContent = `Expires in: ${mins}:${secs < 10 ? '0' : ''}${secs}`;
+        if (timerDisplay) {
+            timerDisplay.textContent = `Expires in: ${mins}:${secs < 10 ? '0' : ''}${secs}`;
+        }
 
         if (timeLeft <= 0) {
             clearInterval(qrExpirationTimer);
             activeSessionActive = false;
             localStorage.setItem('activeQR_status', 'expired');
             qrcodeContainer.innerHTML = '<p style="color: #ef4444; font-size: 13px; font-weight: 600; padding: 16px;">QR Code Expired.</p>';
-            timerDisplay.textContent = 'Session Closed';
+            if (timerDisplay) timerDisplay.textContent = 'Session Closed';
         }
         timeLeft--;
     }, 1000);
@@ -309,7 +329,7 @@ async function startInstantQrScanner() {
         qrVideo.srcObject = qrStream;
         await qrVideo.play();
 
-        // Check if native BarcodeDetector is available (Hardware accelerated in Chromium)
+        // Hardware-accelerated BarcodeDetector where available
         if ('BarcodeDetector' in window) {
             const barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] });
             scanBarcodeLoopNative(qrVideo, barcodeDetector);
@@ -317,15 +337,15 @@ async function startInstantQrScanner() {
             scanBarcodeLoopFallback(qrVideo);
         }
     } catch (err) {
-        console.error("Camera access failed", err);
-        // Fallback retry with basic user camera constraint
+        console.warn("Primary environment camera failed, trying default constraint:", err);
         try {
             qrStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
             qrVideo.srcObject = qrStream;
             await qrVideo.play();
             scanBarcodeLoopFallback(qrVideo);
         } catch (subErr) {
-            alert("Camera access denied or unavailable. Please enable permissions.");
+            console.error("Camera access failed", subErr);
+            alert("Camera access denied or unavailable. Please enable permissions in your browser settings.");
         }
     }
 }
@@ -384,12 +404,12 @@ function onQrScanMatch(decodedText) {
         if (decodedText.includes("CS-") || decodedText.includes("DCE-")) isValid = true;
     }
 
-    if (!isValid) return; // Ignore irrelevant barcodes
+    if (!isValid) return; // Keep scanning if random barcode
 
     isProcessingScan = true;
     if (qrScanAnimationId) cancelAnimationFrame(qrScanAnimationId);
 
-    // Stop rear scanner stream immediately
+    // Stop rear stream immediately
     if (qrStream) {
         qrStream.getTracks().forEach(t => t.stop());
         qrStream = null;
@@ -412,6 +432,7 @@ function proceedToFaceScan(subjectName) {
 }
 
 async function startFaceBiometricScan() {
+    isBiometricCapturing = false;
     const faceVideo = document.getElementById('faceVideo');
     const statusMsg = document.getElementById('faceStatusMsg');
     if (statusMsg) statusMsg.textContent = "Align face in circle... Verifying...";
@@ -429,8 +450,9 @@ async function startFaceBiometricScan() {
         faceVideo.srcObject = faceVideoStream;
         await faceVideo.play();
 
-        // 1.8 seconds biometric verification time, then auto-snapshot
-        setTimeout(() => {
+        // Verification delay, then automatic capture
+        if (biometricTimeout) clearTimeout(biometricTimeout);
+        biometricTimeout = setTimeout(() => {
             captureStudentFaceAndMark();
         }, 1800);
     } catch (err) {
@@ -440,6 +462,14 @@ async function startFaceBiometricScan() {
 }
 
 function captureStudentFaceAndMark() {
+    if (isBiometricCapturing) return; // Guard against multiple simultaneous triggers
+    isBiometricCapturing = true;
+
+    if (biometricTimeout) {
+        clearTimeout(biometricTimeout);
+        biometricTimeout = null;
+    }
+
     const faceVideo = document.getElementById('faceVideo');
     const canvas = document.getElementById('faceCaptureCanvas');
     let capturedPhotoData = null;
@@ -453,7 +483,7 @@ function captureStudentFaceAndMark() {
         const startY = ((faceVideo.videoHeight || 480) - minDim) / 2;
 
         ctx.drawImage(faceVideo, startX, startY, minDim, minDim, 0, 0, 160, 160);
-        capturedPhotoData = canvas.toDataURL('image/jpeg', 0.65); // Compressed JPEG base64 for fast DB sync
+        capturedPhotoData = canvas.toDataURL('image/jpeg', 0.6); // Compact payload for fast Firebase sync
     }
 
     stopAllCameras();
@@ -476,6 +506,10 @@ function stopAllCameras() {
         cancelAnimationFrame(qrScanAnimationId);
         qrScanAnimationId = null;
     }
+    if (biometricTimeout) {
+        clearTimeout(biometricTimeout);
+        biometricTimeout = null;
+    }
     if (qrStream) {
         qrStream.getTracks().forEach(track => track.stop());
         qrStream = null;
@@ -487,7 +521,7 @@ function stopAllCameras() {
     isProcessingScan = false;
 }
 
-// Reset view back to scanner so student can scan again seamlessly
+// Reset view back to scanner so student can scan again smoothly
 function resetToScanner() {
     stopAllCameras();
     const faceStepCard = document.getElementById('face-step-card');
@@ -498,7 +532,7 @@ function resetToScanner() {
 
     setTimeout(() => {
         startInstantQrScanner();
-    }, 200);
+    }, 250);
 }
 
 // Append dynamically to Faculty overview table with Student Photo
@@ -506,11 +540,11 @@ function appendAttendanceToFacultyTable(name, roll, time, photo) {
     const tbody = document.getElementById('liveAttendanceTableBody');
     if (!tbody) return;
 
-    // Check if student is already in the table
+    // Check if student is already in the table to prevent duplicates
     const existingRows = tbody.querySelectorAll('tr');
     for (let row of existingRows) {
         if (row.dataset.roll === roll) {
-            return; // Avoid duplicate rows
+            return;
         }
     }
 
@@ -523,7 +557,7 @@ function appendAttendanceToFacultyTable(name, roll, time, photo) {
     const newRow = document.createElement('tr');
     newRow.dataset.roll = roll;
     newRow.innerHTML = `
-        <td><img src="${photoUrl}" class="student-table-photo" alt="${name}" style="width: 42px; height: 42px; border-radius: 50%; object-fit: cover; border: 2px solid #38bdf8;"></td>
+        <td><img src="${photoUrl}" class="student-table-photo" alt="${name}"></td>
         <td><strong>${name}</strong></td>
         <td>${roll}</td>
         <td>${time}</td>
@@ -564,11 +598,11 @@ function recordStudentAttendance(studentName, rollNumber, photoData) {
             })
             .catch((err) => {
                 console.error("Firebase push error:", err);
-                alert(`✅ Attendance logged for ${attendanceRecord.name}!`);
+                alert(`✅ Attendance recorded for ${attendanceRecord.name}!`);
                 resetToScanner();
             });
     } else {
-        alert(`✅ Attendance logged for ${attendanceRecord.name}!`);
+        alert(`✅ Attendance recorded for ${attendanceRecord.name}!`);
         resetToScanner();
     }
 
@@ -598,7 +632,8 @@ function simulateScanSuccess() {
 
 function handleStudentProfileUpdate(event) {
     event.preventDefault();
-    const updatedName = document.getElementById('profileName').value;
+    const profileElem = document.getElementById('profileName');
+    const updatedName = profileElem ? profileElem.value : currentUser.name;
     currentUser.name = updatedName;
     sessionStorage.setItem('active_session_user', JSON.stringify(currentUser));
     alert(`Profile details updated for ${updatedName}!`);
