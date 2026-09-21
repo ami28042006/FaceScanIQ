@@ -23,6 +23,67 @@ try {
     console.warn("Firebase initialization skipped or failed. Falling back to local events.", e);
 }
 
+// --- GEOFENCING CONFIGURATION ---
+const GEOFENCE_CONFIG = {
+    enabled: false, // Geofence disabled for easy testing at home
+    classroomLat: 22.3072,
+    classroomLng: 73.1812,
+    allowedRadiusMeters: 100
+};
+
+// Calculate distance between two GPS coordinates in meters (Haversine Formula)
+function calculateDistanceInMeters(lat1, lon1, lat2, lon2) {
+    const R = 6371e3; // Earth radius in meters
+    const φ1 = (lat1 * Math.PI) / 180;
+    const φ2 = (lat2 * Math.PI) / 180;
+    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c;
+}
+
+function verifyGeofence() {
+    return new Promise((resolve, reject) => {
+        if (!GEOFENCE_CONFIG.enabled) {
+            resolve({ inBounds: true, distance: 0 });
+            return;
+        }
+
+        if (!navigator.geolocation) {
+            reject(new Error("Geolocation is not supported by your device browser."));
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                const studentLat = pos.coords.latitude;
+                const studentLng = pos.coords.longitude;
+                const dist = calculateDistanceInMeters(
+                    studentLat,
+                    studentLng,
+                    GEOFENCE_CONFIG.classroomLat,
+                    GEOFENCE_CONFIG.classroomLng
+                );
+
+                if (dist <= GEOFENCE_CONFIG.allowedRadiusMeters) {
+                    resolve({ inBounds: true, distance: Math.round(dist) });
+                } else {
+                    resolve({ inBounds: false, distance: Math.round(dist) });
+                }
+            },
+            (err) => {
+                reject(err);
+            },
+            { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+        );
+    });
+}
+
 // --- STATE MANAGEMENT ---
 let qrExpirationTimer = null;
 let activeSessionActive = false;
@@ -48,10 +109,7 @@ let currentUser = {
 function initFacultyRealtimeListener() {
     if (!db) return;
     
-    // Detach any previous listeners
     db.ref('attendance').off();
-    
-    // Listen across all sessions
     db.ref('attendance').on('child_added', (sessionSnapshot) => {
         sessionSnapshot.ref.on('child_added', (recordSnapshot) => {
             const student = recordSnapshot.val();
@@ -140,7 +198,6 @@ function handleAuthSubmit(event) {
         return;
     }
 
-    // Sign in logic
     const savedAccount = localStorage.getItem(`user_${enteredIdentifier}`);
     if (savedAccount) {
         currentUser = JSON.parse(savedAccount);
@@ -154,18 +211,15 @@ function handleAuthSubmit(event) {
 
     sessionStorage.setItem('active_session_user', JSON.stringify(currentUser));
 
-    // Display top navigation header
     const topNavbar = document.getElementById('topNavbar');
     if (topNavbar) topNavbar.style.display = 'flex';
 
-    // Display greeting badge
     const greetingBadge = document.getElementById('navUserGreeting');
     if (greetingBadge) {
         greetingBadge.textContent = `${currentUser.name} (${currentRole})`;
         greetingBadge.style.display = 'inline-block';
     }
 
-    // Switch Screens
     document.getElementById('auth-screen').style.display = 'none';
     document.getElementById('dashboard-screen').style.display = 'block';
 
@@ -329,7 +383,6 @@ async function startInstantQrScanner() {
         qrVideo.srcObject = qrStream;
         await qrVideo.play();
 
-        // Hardware-accelerated BarcodeDetector where available
         if ('BarcodeDetector' in window) {
             const barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] });
             scanBarcodeLoopNative(qrVideo, barcodeDetector);
@@ -384,7 +437,8 @@ function scanBarcodeLoopFallback(video) {
     qrScanAnimationId = requestAnimationFrame(() => scanBarcodeLoopFallback(video));
 }
 
-function onQrScanMatch(decodedText) {
+// Anti-Screenshot: Strict TTL + Live Classroom Geofence Verification
+async function onQrScanMatch(decodedText) {
     let isValid = false;
     let qrData = null;
 
@@ -404,15 +458,29 @@ function onQrScanMatch(decodedText) {
         if (decodedText.includes("CS-") || decodedText.includes("DCE-")) isValid = true;
     }
 
-    if (!isValid) return; // Keep scanning if random barcode
+    if (!isValid) return;
 
     isProcessingScan = true;
     if (qrScanAnimationId) cancelAnimationFrame(qrScanAnimationId);
 
-    // Stop rear stream immediately
+    // Stop rear stream
     if (qrStream) {
         qrStream.getTracks().forEach(t => t.stop());
         qrStream = null;
+    }
+
+    // Geofence GPS Check
+    try {
+        const geoResult = await verifyGeofence();
+        if (!geoResult.inBounds) {
+            alert(`🚫 Attendance Blocked!\nYou are ${geoResult.distance}m away. You must be physically inside the classroom (${GEOFENCE_CONFIG.allowedRadiusMeters}m radius).`);
+            resetToScanner();
+            return;
+        }
+    } catch (geoErr) {
+        alert("⚠️ Location check failed: Please allow Location/GPS access to confirm physical presence.");
+        resetToScanner();
+        return;
     }
 
     if (qrData && qrData.sessionId) {
@@ -450,7 +518,6 @@ async function startFaceBiometricScan() {
         faceVideo.srcObject = faceVideoStream;
         await faceVideo.play();
 
-        // Verification delay, then automatic capture
         if (biometricTimeout) clearTimeout(biometricTimeout);
         biometricTimeout = setTimeout(() => {
             captureStudentFaceAndMark();
@@ -462,7 +529,7 @@ async function startFaceBiometricScan() {
 }
 
 function captureStudentFaceAndMark() {
-    if (isBiometricCapturing) return; // Guard against multiple simultaneous triggers
+    if (isBiometricCapturing) return;
     isBiometricCapturing = true;
 
     if (biometricTimeout) {
@@ -483,7 +550,7 @@ function captureStudentFaceAndMark() {
         const startY = ((faceVideo.videoHeight || 480) - minDim) / 2;
 
         ctx.drawImage(faceVideo, startX, startY, minDim, minDim, 0, 0, 160, 160);
-        capturedPhotoData = canvas.toDataURL('image/jpeg', 0.6); // Compact payload for fast Firebase sync
+        capturedPhotoData = canvas.toDataURL('image/jpeg', 0.6);
     }
 
     stopAllCameras();
@@ -521,7 +588,6 @@ function stopAllCameras() {
     isProcessingScan = false;
 }
 
-// Reset view back to scanner so student can scan again smoothly
 function resetToScanner() {
     stopAllCameras();
     const faceStepCard = document.getElementById('face-step-card');
@@ -535,12 +601,10 @@ function resetToScanner() {
     }, 250);
 }
 
-// Append dynamically to Faculty overview table with Student Photo
 function appendAttendanceToFacultyTable(name, roll, time, photo) {
     const tbody = document.getElementById('liveAttendanceTableBody');
     if (!tbody) return;
 
-    // Check if student is already in the table to prevent duplicates
     const existingRows = tbody.querySelectorAll('tr');
     for (let row of existingRows) {
         if (row.dataset.roll === roll) {
@@ -589,7 +653,6 @@ function recordStudentAttendance(studentName, rollNumber, photoData) {
         syncId: Date.now()
     };
 
-    // 1. Push to Firebase Realtime Database
     if (db) {
         db.ref('attendance/' + activeSessionId).push(attendanceRecord)
             .then(() => {
@@ -606,11 +669,9 @@ function recordStudentAttendance(studentName, rollNumber, photoData) {
         resetToScanner();
     }
 
-    // 2. Same-Device/Local Broadcast
     appendAttendanceToFacultyTable(attendanceRecord.name, attendanceRecord.rollNumber, attendanceRecord.timestamp, attendanceRecord.photo);
     localStorage.setItem('latest_attendance_entry', JSON.stringify(attendanceRecord));
 
-    // 3. Update Student's Personal Log Table
     const studentLog = document.getElementById('student-log');
     if (studentLog) {
         const emptyNotice = document.getElementById('emptyStudentNotice');
