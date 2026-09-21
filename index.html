@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FaceScanIQ - Smart Attendance System</title>
+    <!-- QR Code Generator for Faculty -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- QR Code Camera Scanner for Students -->
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="bg-overlay"></div>
+
+    <!-- AUTHENTICATION SCREEN -->
+    <div id="auth-screen">
+        <div class="container">
+            <div class="brand-header">
+                <img src="logo.png" alt="FaceScanIQ Logo" class="brand-logo-img">
+                <div class="brand-name">FaceScan<span>IQ</span></div>
+            </div>
+
+            <div class="mode-toggle">
+                <button class="mode-btn active" id="btnSignUp" type="button" onclick="setAuthMode('signup')">Sign Up</button>
+                <button class="mode-btn" id="btnSignIn" type="button" onclick="setAuthMode('signin')">Sign In</button>
+            </div>
+
+            <div class="roles">
+                <button class="role active" type="button" onclick="setRole('Faculty', this)">👨‍🏫 Faculty</button>
+                <button class="role" type="button" onclick="setRole('Student', this)">🎓 Student</button>
+                <button class="role" type="button" onclick="setRole('Parents', this)">👨‍👩‍👧 Parents</button>
+            </div>
+
+            <form onsubmit="handleAuthSubmit(event)">
+                <div class="input-group" id="nameGroup">
+                    <label>Full Name</label>
+                    <input type="text" id="nameInput" placeholder="Enter full name" required>
+                </div>
+                <div class="input-group">
+                    <label id="userLabel">Faculty Identification / Email</label>
+                    <input type="text" id="userInput" placeholder="Enter faculty email" required>
+                </div>
+                <div class="input-group">
+                    <label>Password</label>
+                    <input type="password" id="passwordInput" placeholder="Enter password" required>
+                </div>
+                <button type="submit" class="login-btn" id="submitBtn">Create Account →</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MAIN DASHBOARD CONTAINER -->
+    <div id="dashboard-screen" style="display: none;">
+        <nav class="navbar">
+            <div class="brand-header" style="margin: 0;">
+                <img src="logo.png" alt="FaceScanIQ Logo" class="brand-logo-img">
+                <div class="brand-name">FaceScan<span>IQ Portal</span></div>
+            </div>
+            <button class="logout-btn" type="button" onclick="logout()">Sign Out</button>
+        </nav>
+
+        <div class="dash-content">
+            
+            <!-- 1. FACULTY PANEL -->
+            <div id="faculty-panel" style="display: none; width: 100%; max-width: 700px;">
+                <div class="dash-card">
+                    <h2>Faculty QR Control Panel</h2>
+                    <p class="subtitle">Generate an active attendance QR code for live student scanning.</p>
+
+                    <div class="grid-2">
+                        <div class="input-group">
+                            <label>Program Type</label>
+                            <select id="programTypeSelect" onchange="updateSubjectList()">
+                                <option value="Degree">Degree (B.Tech / BE)</option>
+                                <option value="Diploma">Diploma</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label>Academic Year</label>
+                            <select id="academicYearSelect">
+                                <option value="1st Year">1st Year</option>
+                                <option value="2nd Year">2nd Year</option>
+                                <option value="3rd Year">3rd Year</option>
+                                <option value="4th Year">4th Year</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid-2">
+                        <div class="input-group">
+                            <label>Select Subject</label>
+                            <select id="subjectSelect">
+                                <option value="CS-301: Machine Learning">CS-301: Machine Learning</option>
+                                <option value="CS-102: Data Structures">CS-102: Data Structures</option>
+                                <option value="CS-204: Web Technologies">CS-204: Web Technologies</option>
+                                <option value="CS-405: Cloud Computing">CS-405: Cloud Computing</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label>Validity Limit</label>
+                            <select id="timeLimitSelect">
+                                <option value="30">30 Seconds</option>
+                                <option value="60">1 Minute</option>
+                                <option value="120">2 Minutes</option>
+                                <option value="300">5 Minutes</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button class="login-btn" type="button" onclick="startTimedQRGeneration()">Generate Timed QR Code</button>
+
+                    <div class="qr-container">
+                        <div id="qrcode"></div>
+                        <div id="timerDisplay" class="timer-badge" style="display: none;">Expires in: --:--</div>
+                    </div>
+                </div>
+
+                <div class="dash-card" style="margin-top: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <h3 style="margin: 0; font-size: 16px;">Live Attendance Overview</h3>
+                        <span id="liveCountBadge" class="badge">Present: 2</span>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Student Name</th>
+                                <th>Roll Number</th>
+                                <th>Time Marked</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="liveAttendanceTableBody">
+                            <tr>
+                                <td>Alex Johnson</td>
+                                <td>CS2026-042</td>
+                                <td>10:14 AM</td>
+                                <td><span class="status-badge">Verified</span></td>
+                            </tr>
+                            <tr>
+                                <td>Sarah Williams</td>
+                                <td>CS2026-058</td>
+                                <td>10:15 AM</td>
+                                <td><span class="status-badge">Verified</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 2. STUDENT PANEL -->
+            <div id="student-panel" style="display: none; width: 100%; max-width: 700px;">
+                
+                <!-- Step 1: Camera Scanner -->
+                <div id="qr-step-card" class="dash-card">
+                    <h2>Step 1: Scan Attendance QR</h2>
+                    <p class="subtitle">Align the faculty screen QR code inside the box below.</p>
+                    
+                    <div id="qr-reader"></div>
+                </div>
+
+                <!-- Step 2: Facial Biometrics Verification -->
+                <div id="face-step-card" class="dash-card" style="display: none; margin-top: 20px;">
+                    <h2>Step 2: Biometric Face Verification</h2>
+                    <p class="subtitle">Hold still while your frontal facial scan is verified.</p>
+                    
+                    <div class="video-container">
+                        <video id="faceVideo" autoplay playsinline muted></video>
+                    </div>
+
+                    <button class="login-btn" type="button" onclick="simulateScanSuccess()">Authenticate & Mark Attendance</button>
+                </div>
+
+                <!-- Profile Management -->
+                <div class="dash-card" style="margin-top: 20px;">
+                    <h2>Student Profile Details</h2>
+                    <p class="subtitle">Update your academic information.</p>
+                    
+                    <form onsubmit="handleStudentProfileUpdate(event)" style="margin-top: 16px;">
+                        <div class="grid-2">
+                            <div class="input-group">
+                                <label>Full Name</label>
+                                <input type="text" id="profileName" value="Alex Johnson" required>
+                            </div>
+                            <div class="input-group">
+                                <label>Email Address</label>
+                                <input type="email" id="profileEmail" value="alex.johnson@student.edu" required>
+                            </div>
+                        </div>
+
+                        <div class="grid-2">
+                            <div class="input-group">
+                                <label>Phone Number</label>
+                                <input type="tel" id="profilePhone" value="+1 (555) 019-2834" required>
+                            </div>
+                            <div class="input-group">
+                                <label>Program Batch</label>
+                                <select id="profileBatch">
+                                    <option value="Degree" selected>Degree (B.Tech / BE)</option>
+                                    <option value="Diploma">Diploma</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="login-btn" style="margin-top: 10px;">Save Profile Updates</button>
+                    </form>
+                </div>
+
+                <!-- Leave Application Form -->
+                <div class="dash-card" style="margin-top: 20px;">
+                    <h2>Submit Leave Application</h2>
+                    <p class="subtitle">Send absence requests directly to faculty review.</p>
+                    
+                    <form onsubmit="handleLeaveSubmit(event)" style="margin-top: 16px;">
+                        <div class="grid-2">
+                            <div class="input-group">
+                                <label>From Date</label>
+                                <input type="date" id="leaveFromDate" required>
+                            </div>
+                            <div class="input-group">
+                                <label>To Date</label>
+                                <input type="date" id="leaveToDate" required>
+                            </div>
+                        </div>
+
+                        <div class="input-group">
+                            <label>Reason for Leave</label>
+                            <textarea id="leaveReason" rows="3" placeholder="State reason clearly..." required></textarea>
+                        </div>
+
+                        <button type="submit" class="login-btn" style="margin-top: 10px;">Submit Leave Application</button>
+                    </form>
+
+                    <h3 style="font-size: 16px; margin-top: 24px; margin-bottom: 12px;">Leave Status History</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Duration</th>
+                                <th>Reason</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="leaveHistoryTable">
+                            <tr>
+                                <td>Sep 02 - Sep 03, 2026</td>
+                                <td>Medical Appointment</td>
+                                <td><span class="status-badge" style="background: rgba(52, 211, 153, 0.15); color: #34d399;">Approved</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Personal Attendance History -->
+                <div class="dash-card" style="margin-top: 20px;">
+                    <h3 style="font-size: 16px; margin-bottom: 12px;">Your Attendance History</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Subject</th>
+                                <th>Date</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="student-log">
+                            <tr>
+                                <td>CS-301: Machine Learning</td>
+                                <td>Sep 06, 2026</td>
+                                <td><span class="status-badge">Present</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 3. PARENTS PANEL -->
+            <div id="parent-panel" style="display: none; width: 100%; max-width: 700px;">
+                <div class="dash-card">
+                    <h2>Child Attendance Dashboard</h2>
+                    
+                    <div style="display: flex; align-items: center; gap: 12px; margin-top: 16px;">
+                        <img src="student-avatar.jpg" alt="Student Avatar" class="avatar-img" onerror="this.src='logo.png'">
+                        <div>
+                            <p style="color: #ffffff; font-size: 16px; font-weight: 600; margin: 0;">Alex Johnson</p>
+                            <p style="color: #94a3b8; font-size: 13px; margin: 0;">ID: CS2026-042 | Semester V</p>
+                        </div>
+                    </div>
+                    
+                    <div class="grid-2" style="margin-top: 20px;">
+                        <div class="stat-box">
+                            <span class="stat-label">Overall Percentage</span>
+                            <h2 style="color: #38bdf8; margin: 6px 0 0 0; font-size: 28px;">92.5%</h2>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-label">Attended Classes</span>
+                            <h2 style="color: #34d399; margin: 6px 0 0 0; font-size: 28px;">37 / 40</h2>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dash-card" style="margin-top: 20px;">
+                    <h3 style="font-size: 16px; margin-bottom: 12px;">Recent Activity Logs</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Course Title</th>
+                                <th>Check-in Time</th>
+                                <th>Verification</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>CS-301: Machine Learning</td>
+                                <td>09:45 AM (Today)</td>
+                                <td><span class="status-badge">Present</span></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
