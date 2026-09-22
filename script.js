@@ -25,7 +25,7 @@ try {
 
 // --- GEOFENCING CONFIGURATION ---
 const GEOFENCE_CONFIG = {
-    enabled: false, // Geofence disabled for easy testing at home
+    enabled: false, // Set to true when deploying on campus
     classroomLat: 22.3072,
     classroomLng: 73.1812,
     allowedRadiusMeters: 100
@@ -114,7 +114,13 @@ function initFacultyRealtimeListener() {
         sessionSnapshot.ref.on('child_added', (recordSnapshot) => {
             const student = recordSnapshot.val();
             if (student && student.name) {
-                appendAttendanceToFacultyTable(student.name, student.rollNumber, student.timestamp, student.photo);
+                appendAttendanceToFacultyTable(
+                    student.name, 
+                    student.rollNumber, 
+                    student.timestamp, 
+                    student.photo, 
+                    student.status || "Verified"
+                );
             }
         });
     });
@@ -125,7 +131,13 @@ window.addEventListener('storage', (event) => {
     if (event.key === 'latest_attendance_entry' && event.newValue) {
         try {
             const entry = JSON.parse(event.newValue);
-            appendAttendanceToFacultyTable(entry.name, entry.rollNumber, entry.timestamp, entry.photo);
+            appendAttendanceToFacultyTable(
+                entry.name, 
+                entry.rollNumber, 
+                entry.timestamp, 
+                entry.photo, 
+                entry.status || "Verified"
+            );
         } catch (e) {
             console.error("Failed to parse cross-tab attendance entry", e);
         }
@@ -469,7 +481,7 @@ async function onQrScanMatch(decodedText) {
         qrStream = null;
     }
 
-    // Geofence GPS Check
+    // Geofence GPS Check & Distance Recording
     try {
         const geoResult = await verifyGeofence();
         if (!geoResult.inBounds) {
@@ -477,6 +489,9 @@ async function onQrScanMatch(decodedText) {
             resetToScanner();
             return;
         }
+        // Store measured distance for logging
+        const distanceStr = GEOFENCE_CONFIG.enabled ? `${geoResult.distance}m away` : 'In Range';
+        sessionStorage.setItem('scanned_distance', distanceStr);
     } catch (geoErr) {
         alert("⚠️ Location check failed: Please allow Location/GPS access to confirm physical presence.");
         resetToScanner();
@@ -601,7 +616,7 @@ function resetToScanner() {
     }, 250);
 }
 
-function appendAttendanceToFacultyTable(name, roll, time, photo) {
+function appendAttendanceToFacultyTable(name, roll, time, photo, status) {
     const tbody = document.getElementById('liveAttendanceTableBody');
     if (!tbody) return;
 
@@ -617,6 +632,7 @@ function appendAttendanceToFacultyTable(name, roll, time, photo) {
 
     const fallbackImg = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=38bdf8&color=fff`;
     const photoUrl = photo || fallbackImg;
+    const statusText = status || "Verified";
 
     const newRow = document.createElement('tr');
     newRow.dataset.roll = roll;
@@ -625,7 +641,7 @@ function appendAttendanceToFacultyTable(name, roll, time, photo) {
         <td><strong>${name}</strong></td>
         <td>${roll}</td>
         <td>${time}</td>
-        <td><span class="status-badge">Verified</span></td>
+        <td><span class="status-badge">${statusText}</span></td>
     `;
     tbody.prepend(newRow);
     
@@ -641,6 +657,7 @@ function recordStudentAttendance(studentName, rollNumber, photoData) {
     const dateString = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     const subject = sessionStorage.getItem('current_attendance_subject') || "CS-301: Machine Learning";
     const activeSessionId = sessionStorage.getItem('active_scanned_session_id') || 'default_session';
+    const distanceRecorded = sessionStorage.getItem('scanned_distance') || 'In Range';
 
     const attendanceRecord = {
         name: studentName,
@@ -649,7 +666,7 @@ function recordStudentAttendance(studentName, rollNumber, photoData) {
         date: dateString,
         subject: subject,
         photo: photoData,
-        status: "Verified",
+        status: `Verified (${distanceRecorded})`,
         syncId: Date.now()
     };
 
@@ -669,7 +686,13 @@ function recordStudentAttendance(studentName, rollNumber, photoData) {
         resetToScanner();
     }
 
-    appendAttendanceToFacultyTable(attendanceRecord.name, attendanceRecord.rollNumber, attendanceRecord.timestamp, attendanceRecord.photo);
+    appendAttendanceToFacultyTable(
+        attendanceRecord.name, 
+        attendanceRecord.rollNumber, 
+        attendanceRecord.timestamp, 
+        attendanceRecord.photo,
+        attendanceRecord.status
+    );
     localStorage.setItem('latest_attendance_entry', JSON.stringify(attendanceRecord));
 
     const studentLog = document.getElementById('student-log');
